@@ -279,14 +279,16 @@ do_self_update() {
         dim "  curl -sSL ${SELF_REPO} -o anytls.sh && bash anytls.sh"
         return
     fi
-    local tmp; tmp=$(mktemp)
+    local self tmp
+    self=$(realpath "$0" 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$0")
+    tmp=$(mktemp)
     step "正在检查更新..."
     curl -sSL "$SELF_REPO" -o "$tmp" || { rm -f "$tmp"; die "下载脚本失败"; }
-    cp "$tmp" "$0"
-    chmod +x "$0"
+    cp "$tmp" "$self"
+    chmod +x "$self"
     rm -f "$tmp"
     ok "脚本已更新"
-    exec "$0" "$@"
+    exec "$self" "$@"
 }
 
 # ===== Terminal Menu =====
