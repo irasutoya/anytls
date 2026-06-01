@@ -8,6 +8,7 @@ GH_RELEASE="https://github.com/anytls/anytls-go/releases"
 GH_PROXY="https://ghproxy.net/${GH_RELEASE}"
 DEF_DOMAIN="gateway.icloud.com"
 DEF_PORT=443
+FALLBACK_VER="0.0.12"
 
 # Cyberpunk palette
 PINK='\033[35m'; CYAN='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'
@@ -69,7 +70,10 @@ detect_asset() {
     local arch; arch=$(uname -m) || die "无法检测系统架构"
     local tag; tag=$(curl -sS --max-time 5 "https://api.github.com/repos/anytls/anytls-go/releases/latest" 2>/dev/null | grep -m1 '"tag_name"' | cut -d'"' -f4) || tag=""
     local ver=${tag#v}
-    [ -z "$ver" ] && die "无法获取最新版本号"
+    if [ -z "$ver" ]; then
+        ver=$FALLBACK_VER
+        warn "无法获取最新版本，使用 v${ver} 作为 fallback"
+    fi
 
     case "$arch" in
         x86_64|amd64) echo "anytls_${ver}_linux_amd64.zip" ;;
