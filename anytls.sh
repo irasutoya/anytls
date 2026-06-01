@@ -68,12 +68,10 @@ check_deps() {
 
 detect_asset() {
     local arch; arch=$(uname -m) || die "无法检测系统架构"
-    local tag; tag=$(curl -sS --max-time 5 "https://api.github.com/repos/anytls/anytls-go/releases/latest" 2>/dev/null | grep -m1 '"tag_name"' | cut -d'"' -f4) || tag=""
-    local ver=${tag#v}
-    if [ -z "$ver" ]; then
-        ver=$FALLBACK_VER
-        warn "无法获取最新版本，使用 v${ver} 作为 fallback"
-    fi
+    local ver=$FALLBACK_VER
+    local tag
+    tag=$(curl -sS --max-time 5 "https://api.github.com/repos/anytls/anytls-go/releases/latest" 2>/dev/null | grep -m1 '"tag_name"' | cut -d'"' -f4) || true
+    [ -n "$tag" ] && ver=${tag#v}
 
     case "$arch" in
         x86_64|amd64) echo "anytls_${ver}_linux_amd64.zip" ;;
