@@ -81,8 +81,9 @@ download() {
     fi
 
     tar -xzf "$tmpdir/$asset" -C "$tmpdir" || die "解压失败"
-    cp -f "$tmpdir/anytls-server" /root/anytls-server
-    chmod +x /root/anytls-server
+    mkdir -p /root/anytls
+    cp -f "$tmpdir/anytls-server" /root/anytls/anytls-server
+    chmod +x /root/anytls/anytls-server
     rm -rf "$tmpdir"
     info "✓ 二进制安装完成"
 }
@@ -97,25 +98,25 @@ gen_password() {
 
 gen_certs() {
     local domain=$1
-    openssl genrsa -out /root/ca.key 4096 2>/dev/null
-    openssl req -x509 -new -nodes -key /root/ca.key -sha256 -days 3650 \
-        -subj "/C=US/O=Apple Inc./CN=Apple Root CA" -out /root/ca.crt 2>/dev/null
-    openssl genrsa -out /root/server.key 2048 2>/dev/null
-    openssl req -new -key /root/server.key \
+    openssl genrsa -out /root/anytls/ca.key 4096 2>/dev/null
+    openssl req -x509 -new -nodes -key /root/anytls/ca.key -sha256 -days 3650 \
+        -subj "/C=US/O=Apple Inc./CN=Apple Root CA" -out /root/anytls/ca.crt 2>/dev/null
+    openssl genrsa -out /root/anytls/server.key 2048 2>/dev/null
+    openssl req -new -key /root/anytls/server.key \
         -subj "/C=US/ST=California/L=Cupertino/O=Apple Inc./CN=$domain" \
-        -out /root/server.csr 2>/dev/null
-    echo "subjectAltName=DNS:$domain" > /root/server.ext
-    openssl x509 -req -in /root/server.csr -CA /root/ca.crt -CAkey /root/ca.key \
-        -CAcreateserial -out /root/server.crt -days 3650 -sha256 \
-        -extfile /root/server.ext 2>/dev/null
-    rm -f /root/server.csr /root/server.ext /root/ca.srl /root/ca.key
-    chmod 600 /root/server.key
-    chmod 644 /root/ca.crt /root/server.crt
+        -out /root/anytls/server.csr 2>/dev/null
+    echo "subjectAltName=DNS:$domain" > /root/anytls/server.ext
+    openssl x509 -req -in /root/anytls/server.csr -CA /root/anytls/ca.crt -CAkey /root/anytls/ca.key \
+        -CAcreateserial -out /root/anytls/server.crt -days 3650 -sha256 \
+        -extfile /root/anytls/server.ext 2>/dev/null
+    rm -f /root/anytls/server.csr /root/anytls/server.ext /root/anytls/ca.srl /root/anytls/ca.key
+    chmod 600 /root/anytls/server.key
+    chmod 644 /root/anytls/ca.crt /root/anytls/server.crt
     info "✓ 证书已生成"
 }
 
 gen_padding_scheme() {
-    cat > /root/padding.txt <<EOF
+    cat > /root/anytls/padding.txt <<EOF
 stop=8
 0=30-30
 1=100-400
@@ -126,7 +127,7 @@ stop=8
 6=500-1000
 7=500-1000
 EOF
-    chmod 644 /root/padding.txt
+    chmod 644 /root/anytls/padding.txt
     info "✓ padding scheme 已生成"
 }
 
@@ -153,7 +154,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/root/anytls-server -l 0.0.0.0:${port} -p ${password} --sni ${domain} --cert /root/server.crt --key /root/server.key --padding-scheme ${padding} --log warn
+ExecStart=/root/anytls/anytls-server -l 0.0.0.0:${port} -p ${password} --sni ${domain} --cert /root/anytls/server.crt --key /root/anytls/server.key --padding-scheme ${padding} --log warn
 Restart=on-failure
 RestartSec=3
 
@@ -203,7 +204,7 @@ do_install() {
     download "$asset"
     gen_certs "$domain"
     gen_padding_scheme
-    install_service "$domain" "$port" "$password" "/root/padding.txt"
+    install_service "$domain" "$port" "$password" "/root/anytls/padding.txt"
 
     if [ "$tui" = 1 ]; then
         whiptail --title "AnyTLS" --yesno "是否自动配置防火墙放行 $port 端口？" 8 50 && config_firewall "$port"
@@ -237,8 +238,8 @@ do_install() {
     info "      - h2"
     info "      - http/1.1"
     info ""
-    info " CA 证书: /root/ca.crt"
-    info " Padding scheme: /root/padding.txt"
+    info " CA 证书: /root/anytls/ca.crt"
+    info " Padding scheme: /root/anytls/padding.txt"
     info "======================================"
 }
 
@@ -248,7 +249,7 @@ do_uninstall() {
     systemctl disable anytls-server.service 2>/dev/null || true
     rm -f /etc/systemd/system/anytls-server.service
     systemctl daemon-reload 2>/dev/null || true
-    rm -f /root/anytls-server /root/padding.txt /root/ca.crt /root/server.crt /root/server.key
+    rm -f /root/anytls/anytls-server /root/anytls/padding.txt /root/anytls/ca.crt /root/anytls/server.crt /root/anytls/server.key
     info "✓ AnyTLS 已卸载"
 }
 

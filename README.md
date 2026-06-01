@@ -53,5 +53,5 @@ proxies:
       - http/1.1
 ```
 
-CA 证书位于 `/root/ca.crt`。
-Padding scheme 位于 `/root/padding.txt`。
+CA 证书位于 `/root/anytls/ca.crt`。
+Padding scheme 位于 `/root/anytls/padding.txt`。
