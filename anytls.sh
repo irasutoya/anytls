@@ -109,6 +109,8 @@ gen_certs() {
         -CAcreateserial -out /root/server.crt -days 3650 -sha256 \
         -extfile /root/server.ext 2>/dev/null
     rm -f /root/server.csr /root/server.ext /root/ca.srl /root/ca.key
+    chmod 600 /root/server.key
+    chmod 644 /root/ca.crt /root/server.crt
     info "✓ 证书已生成"
 }
 
@@ -124,6 +126,7 @@ stop=8
 6=500-1000
 7=500-1000
 EOF
+    chmod 644 /root/padding.txt
     info "✓ padding scheme 已生成"
 }
 
@@ -150,7 +153,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/root/anytls-server -l 0.0.0.0:${port} -p ${password} --sni ${domain} --cert /root/server.crt --key /root/server.key --padding-scheme ${padding}
+ExecStart=/root/anytls-server -l 0.0.0.0:${port} -p ${password} --sni ${domain} --cert /root/server.crt --key /root/server.key --padding-scheme ${padding} --log warn
 Restart=on-failure
 RestartSec=3
 
