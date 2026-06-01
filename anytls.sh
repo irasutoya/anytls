@@ -26,7 +26,7 @@ cleanup() {
 
 commit_id() {
     local rev; rev=$(curl -sS --max-time 3 "https://api.github.com/repos/irasutoya/anytls/commits/main" 2>/dev/null) || true
-    rev=$(echo "$rev" | grep -m1 '"sha"' | cut -d'"' -f4) || true
+    rev=$(echo "$rev" | grep '"sha"' | head -1 | cut -d'"' -f4) || true
     rev=${rev:0:7}
     [ -n "$rev" ] && echo "@${rev}" || true
 }
@@ -66,8 +66,10 @@ check_deps() {
 
 detect_asset() {
     local arch; arch=$(uname -m) || die "无法检测系统架构"
-    local tag
-    tag=$(curl -sfSL --max-time 5 "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | jq -r '.tag_name') || die "获取最新版本失败"
+    local tmpf; tmpf=$(mktemp)
+    curl -sS --max-time 10 -o "$tmpf" "https://api.github.com/repos/SagerNet/sing-box/releases/latest" || { rm -f "$tmpf"; die "获取最新版本失败"; }
+    local tag; tag=$(jq -r '.tag_name' "$tmpf") || { rm -f "$tmpf"; die "获取最新版本失败: $(head -c 200 "$tmpf")"; }
+    rm -f "$tmpf"
     local ver=${tag#v}
 
     case "$arch" in
