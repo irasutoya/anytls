@@ -23,13 +23,10 @@ dim()  { echo -e " ${DIM}$*${NC}"; }
 
 commit_id() {
     local rev=""
-    rev=$(git rev-parse --short HEAD 2>/dev/null) || rev=""
-    if [ -z "$rev" ]; then
-        if command -v jq >/dev/null; then
-            rev=$(curl -sS --max-time 5 "https://api.github.com/repos/irasutoya/anytls/commits/main" 2>/dev/null | jq -r '.sha[:7]' 2>/dev/null) || rev=""
-        else
-            rev=$(curl -sS --max-time 5 "https://api.github.com/repos/irasutoya/anytls/commits/main" 2>/dev/null | grep -m1 '"sha"' | cut -d'"' -f4 | head -c 7) || rev=""
-        fi
+    if command -v jq >/dev/null; then
+        rev=$(curl -sS --max-time 5 "https://api.github.com/repos/irasutoya/anytls/commits/main" 2>/dev/null | jq -r '.sha[:7]' 2>/dev/null) || rev=""
+    else
+        rev=$(curl -sS --max-time 5 "https://api.github.com/repos/irasutoya/anytls/commits/main" 2>/dev/null | grep -m1 '"sha"' | cut -d'"' -f4 | head -c 7) || rev=""
     fi
     [ -n "$rev" ] && echo "@${rev}" || true
 }
@@ -273,22 +270,21 @@ do_status() {
 }
 
 do_self_update() {
-    if [ ! -f "$0" ] || [[ "$0" == /dev/fd/* ]]; then
+    local self="/root/anytls.sh"
+    if [[ "$0" == /dev/fd/* ]]; then
         warn "脚本从管道运行，无法原地更新"
-        dim "请重新下载:"
+        dim "请下载到本地后重试:"
         dim "  curl -sSL ${SELF_REPO} -o anytls.sh && bash anytls.sh"
         return
     fi
-    local self tmp
-    self=$(realpath "$0" 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$0")
-    tmp=$(mktemp)
+    local tmp; tmp=$(mktemp)
     step "正在检查更新..."
     curl -sSL "$SELF_REPO" -o "$tmp" || { rm -f "$tmp"; die "下载脚本失败"; }
     cp "$tmp" "$self"
     chmod +x "$self"
     rm -f "$tmp"
     ok "脚本已更新"
-    exec "$self" "$@"
+    exec bash "$self" "$@"
 }
 
 # ===== Terminal Menu =====
