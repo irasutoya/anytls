@@ -249,7 +249,7 @@ do_uninstall() {
     systemctl disable anytls-server.service 2>/dev/null || true
     rm -f /etc/systemd/system/anytls-server.service
     systemctl daemon-reload 2>/dev/null || true
-    rm -f /root/anytls/anytls-server /root/anytls/padding.txt /root/anytls/ca.crt /root/anytls/server.crt /root/anytls/server.key
+    rm -rf /root/anytls
     info "✓ AnyTLS 已卸载"
 }
 
