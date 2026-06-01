@@ -231,7 +231,7 @@ do_install() {
     dim "  导入链接"
     dim "    ${share_link}"
     echo ""
-    step "Clash Meta / Mihomo"
+    step "配置"
     local clash_file="/root/anytls/clash-proxy.yaml"
     cat > "$clash_file" <<EOF
   - name: anytls
