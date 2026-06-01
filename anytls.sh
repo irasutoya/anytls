@@ -237,7 +237,7 @@ do_install() {
     case "$ans" in n|N|no|NO) ;; *) config_firewall "$port" ;; esac
 
     local ip pw_enc; ip=$(get_ip); pw_enc=$(urlencode "$password")
-    local share_link="anytls://${ip}:${port}?password=${pw_enc}&sni=${domain}"
+    local share_link="anytls://${ip}:${port}?password=${pw_enc}&sni=${domain}&allowInsecure=1"
 
     head "AnyTLS 部署完成"
     echo ""
@@ -252,7 +252,6 @@ do_install() {
     step "Shadowrocket / V2RayN"
     dim "  导入链接"
     dim "    ${share_link}"
-    dim "  注意: 客户端需开启跳过证书验证 (allowInsecure / skip-cert-verify)"
     echo ""
     step "Clash 配置"
     dim " - name: $ip"
