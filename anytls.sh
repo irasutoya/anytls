@@ -252,17 +252,17 @@ do_install() {
     dim "    ${share_link}"
     echo ""
     step "Clash 配置"
-    echo -e " ${DIM}  - name: $ip
-    type: anytls
-    server: $ip
-    port: $port
-    password: \"$password\"
-    sni: $domain
-    udp: true
-    skip-cert-verify: true
-    alpn:
-      - h2
-      - http/1.1${NC}"
+    echo -e " ${DIM} - name: $ip
+   type: anytls
+   server: $ip
+   port: $port
+   password: \"$password\"
+   sni: $domain
+   udp: true
+   skip-cert-verify: true
+   alpn:
+     - h2
+     - http/1.1${NC}"
 }
 
 do_uninstall() {
