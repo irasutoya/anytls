@@ -21,6 +21,30 @@ step() { echo -e " ${CYAN}[*]${NC} $*"; }
 head() { echo -e "\n ${PINK}${BOLD}>>${NC} ${BOLD}$*${NC}"; }
 dim()  { echo -e " ${DIM}$*${NC}"; }
 
+SELF="/root/anytls.sh"
+
+register_cmd() {
+    if [ ! -L /usr/local/bin/anytls ] || [ "$(readlink /usr/local/bin/anytls)" != "$SELF" ]; then
+        mkdir -p /usr/local/bin
+        ln -sf "$SELF" /usr/local/bin/anytls
+        step "注册系统命令: anytls"
+    fi
+}
+
+auto_update() {
+    local tmp; tmp=$(mktemp)
+    step "检查更新..."
+    curl -sSL "$SELF_REPO" -o "$tmp" 2>/dev/null || { rm -f "$tmp"; return; }
+    if ! cmp -s "$tmp" "$SELF" 2>/dev/null; then
+        cp "$tmp" "$SELF"
+        chmod +x "$SELF"
+        ok "已更新至最新版"
+        rm -f "$tmp"
+        exec bash "$SELF" "$@"
+    fi
+    rm -f "$tmp"
+}
+
 commit_id() {
     local rev=""
     if command -v jq >/dev/null; then
@@ -258,6 +282,8 @@ do_uninstall() {
     rm -f /etc/systemd/system/anytls-server.service
     systemctl daemon-reload 2>/dev/null || true
     rm -rf /root/anytls
+    rm -f "$SELF"
+    rm -f /usr/local/bin/anytls
     ok "AnyTLS 已卸载"
 }
 
@@ -269,24 +295,6 @@ do_status() {
     fi
 }
 
-do_self_update() {
-    local self="/root/anytls.sh"
-    if [[ "$0" == /dev/fd/* ]]; then
-        warn "脚本从管道运行，无法原地更新"
-        dim "请下载到本地后重试:"
-        dim "  curl -sSL ${SELF_REPO} -o anytls.sh && bash anytls.sh"
-        return
-    fi
-    local tmp; tmp=$(mktemp)
-    step "正在检查更新..."
-    curl -sSL "$SELF_REPO" -o "$tmp" || { rm -f "$tmp"; die "下载脚本失败"; }
-    cp "$tmp" "$self"
-    chmod +x "$self"
-    rm -f "$tmp"
-    ok "脚本已更新"
-    exec bash "$self" "$@"
-}
-
 # ===== Terminal Menu =====
 
 main_menu() {
@@ -296,9 +304,8 @@ main_menu() {
         dim "  1) 安装"
         dim "  2) 卸载"
         dim "  3) 查看状态"
-        dim "  4) 升级脚本"
         dim "  0) 退出"
-        echo -ne " ${CYAN}[?]${NC} 请选择 ${DIM}[0-4]${NC}: "
+        echo -ne " ${CYAN}[?]${NC} 请选择 ${DIM}[0-3]${NC}: "
         read -r sel
         echo ""
         case "$sel" in
@@ -307,19 +314,35 @@ main_menu() {
                read -r ans
                case "$ans" in y|Y|yes|YES) do_uninstall ;; esac ;;
             3) do_status ;;
-            4) echo -ne " ${CYAN}[?]${NC} 确认升级脚本？${DIM}[y/N]${NC}: "
-               read -r ans
-               case "$ans" in y|Y|yes|YES) do_self_update ;; esac ;;
             0) ok "再见"; exit 0 ;;
         esac
     done
 }
 
 # ===== Entry =====
+
+# Pipe mode: download to canonical path first
+if [[ "$0" =~ ^/dev/fd/ ]] || [ "$0" = /dev/stdin ]; then
+    check_deps
+    step "正在安装 AnyTLS 管理脚本..."
+    curl -sSL "$SELF_REPO" -o "$SELF" || die "下载失败"
+    chmod +x "$SELF"
+    register_cmd
+    ok "安装完成，输入 anytls 即可运行"
+    exec bash "$SELF" "$@"
+fi
+
+# Redirect to canonical path if already installed elsewhere
+if [ "$0" != "$SELF" ] && [ -f "$SELF" ]; then
+    exec bash "$SELF" "$@"
+fi
+
+# Auto-update (only when running as /root/anytls.sh)
+auto_update "$@"
+
 case "${1:-}" in
-    install)      shift; do_install "$@" ;;
-    uninstall)    do_uninstall ;;
-    status)       do_status ;;
-    self-update|self_update) do_self_update "$@" ;;
-    *)            check_deps; banner; main_menu ;;
+    install)   shift; check_deps; do_install "$@" ;;
+    uninstall) do_uninstall ;;
+    status)    do_status ;;
+    *)         banner; main_menu ;;
 esac
