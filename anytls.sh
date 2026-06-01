@@ -46,7 +46,7 @@ pkg_mgr() {
 
 check_deps() {
     local missing=() names=()
-    for cmd in curl tar openssl jq; do
+    for cmd in curl tar openssl; do
         command -v "$cmd" >/dev/null || { missing+=("$cmd"); names+=("$cmd"); }
     done
     command -v systemctl >/dev/null || { missing+=("systemd"); names+=("systemd"); }
@@ -66,10 +66,9 @@ check_deps() {
 
 detect_asset() {
     local arch; arch=$(uname -m) || die "无法检测系统架构"
-    local tmpf; tmpf=$(mktemp)
-    curl -sS --max-time 10 -o "$tmpf" "https://api.github.com/repos/SagerNet/sing-box/releases/latest" || { rm -f "$tmpf"; die "获取最新版本失败"; }
-    local tag; tag=$(jq -r '.tag_name' "$tmpf") || { rm -f "$tmpf"; die "获取最新版本失败: $(head -c 200 "$tmpf")"; }
-    rm -f "$tmpf"
+    local tag_url tag
+    tag_url=$(curl -sIL -o /dev/null -w '%{url_effective}' --max-time 10 "https://github.com/SagerNet/sing-box/releases/latest") || die "获取最新版本失败"
+    tag=${tag_url##*/}
     local ver=${tag#v}
 
     case "$arch" in
