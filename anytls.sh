@@ -245,6 +245,9 @@ do_install() {
     dim "  地址  ${ip}:${port}"
     dim "  密码  ${password}"
     dim "  SNI   ${domain}"
+    step "本地文件"
+    dim "  CA 证书     /root/anytls/ca.crt"
+    dim "  Padding     /root/anytls/padding.txt"
     echo ""
     step "Shadowrocket / V2RayN"
     dim "  导入链接"
@@ -262,11 +265,6 @@ do_install() {
     dim "   alpn:"
     dim "     - h2"
     dim "     - http/1.1"
-    echo ""
-    step "本地文件"
-    dim "  CA 证书     /root/anytls/ca.crt"
-    dim "  Padding     /root/anytls/padding.txt"
-    echo ""
 }
 
 do_uninstall() {
