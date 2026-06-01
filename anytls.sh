@@ -20,6 +20,10 @@ step() { echo -e " ${CYAN}[*]${NC} $*"; }
 head() { echo -e "\n ${PINK}${BOLD}>>${NC} ${BOLD}$*${NC}"; }
 dim()  { echo -e " ${DIM}$*${NC}"; }
 
+cleanup() {
+    local d; for d in "$@"; do rm -rf "$d" 2>/dev/null; done
+}
+
 commit_id() {
     local rev=""
     if command -v jq >/dev/null; then
@@ -64,13 +68,14 @@ check_deps() {
 }
 
 detect_asset() {
-    local arch; arch=$(uname -m)
+    local arch; arch=$(uname -m) || die "无法检测系统架构"
     case "$arch" in
         x86_64|amd64)
             local asset="anytls-x86_64-unknown-linux-musl.tar.gz"
-            local code; code=$(curl -sL -o /dev/null -w "%{http_code}" "$GH_RELEASE/$asset" 2>/dev/null)
+            local code=000
+            code=$(curl -sL -o /dev/null -w "%{http_code}" "$GH_RELEASE/$asset" 2>/dev/null) || code=000
             [ "$code" = 200 ] && { echo "$asset"; return; }
-            code=$(curl -sL -o /dev/null -w "%{http_code}" "$GH_PROXY/$asset" 2>/dev/null)
+            code=$(curl -sL -o /dev/null -w "%{http_code}" "$GH_PROXY/$asset" 2>/dev/null) || code=000
             [ "$code" = 200 ] && { echo "$asset"; return; }
             echo "anytls-x86_64-unknown-linux-gnu.tar.gz" ;;
         aarch64|arm64)
@@ -81,7 +86,8 @@ detect_asset() {
 
 download() {
     local asset=$1 url="$GH_RELEASE/$asset" fallback="$GH_PROXY/$asset"
-    local tmpdir; tmpdir=$(mktemp -d)
+    local tmpdir; tmpdir=$(mktemp -d) || die "创建临时目录失败"
+    trap "cleanup '$tmpdir'" EXIT
 
     step "下载 $asset ..."
     curl -#SL "$url" -o "$tmpdir/$asset" || {
@@ -94,33 +100,41 @@ download() {
     cp -f "$tmpdir/anytls-server" /root/anytls/anytls-server
     chmod +x /root/anytls/anytls-server
     rm -rf "$tmpdir"
+    trap - EXIT
     ok "二进制安装完成"
 }
 
 gen_password() {
-    local hex; hex=$(openssl rand -hex 16)
+    local hex; hex=$(openssl rand -hex 16 2>/dev/null) || hex=""
+    if [ ${#hex} -lt 32 ]; then
+        date +%s | md5sum | head -c 8
+        echo "-0000-4000-8000-$(date +%s%N | md5sum | head -c 12)"
+        return
+    fi
     local h1=${hex:0:8} h2=${hex:8:4} h3=${hex:12:4}
     local h4=${hex:16:4} h5=${hex:20:12}
-    local h4_first; printf -v h4_first '%x' $((0x${h4:0:1} & 0x3 | 0x8))
+    local h4_first; printf -v h4_first '%x' $((0x${h4:0:1} & 0x3 | 0x8)) 2>/dev/null || h4_first="8"
     echo "${h1}-${h2}-4${h3:1:3}-${h4_first}${h4:1:3}-${h5}"
 }
 
 gen_certs() {
-    local domain=$1
-    openssl genrsa -out /root/anytls/ca.key 4096 2>/dev/null
-    openssl req -x509 -new -nodes -key /root/anytls/ca.key -sha256 -days 3650 \
-        -subj "/C=US/O=Apple Inc./CN=Apple Root CA" -out /root/anytls/ca.crt 2>/dev/null
-    openssl genrsa -out /root/anytls/server.key 2048 2>/dev/null
-    openssl req -new -key /root/anytls/server.key \
+    local domain=$1 tmpdir; tmpdir=$(mktemp -d)
+    openssl genrsa -out "$tmpdir/ca.key" 4096 2>/dev/null || { rm -rf "$tmpdir"; die "CA 密钥生成失败"; }
+    openssl req -x509 -new -nodes -key "$tmpdir/ca.key" -sha256 -days 3650 \
+        -subj "/C=US/O=Apple Inc./CN=Apple Root CA" -out "$tmpdir/ca.crt" 2>/dev/null || { rm -rf "$tmpdir"; die "CA 证书生成失败"; }
+    openssl genrsa -out "$tmpdir/server.key" 2048 2>/dev/null || { rm -rf "$tmpdir"; die "服务器密钥生成失败"; }
+    openssl req -new -key "$tmpdir/server.key" \
         -subj "/C=US/ST=California/L=Cupertino/O=Apple Inc./CN=$domain" \
-        -out /root/anytls/server.csr 2>/dev/null
-    echo "subjectAltName=DNS:$domain" > /root/anytls/server.ext
-    openssl x509 -req -in /root/anytls/server.csr -CA /root/anytls/ca.crt -CAkey /root/anytls/ca.key \
-        -CAcreateserial -out /root/anytls/server.crt -days 3650 -sha256 \
-        -extfile /root/anytls/server.ext 2>/dev/null
-    rm -f /root/anytls/server.csr /root/anytls/server.ext /root/anytls/ca.srl /root/anytls/ca.key
+        -out "$tmpdir/server.csr" 2>/dev/null || { rm -rf "$tmpdir"; die "CSR 生成失败"; }
+    echo "subjectAltName=DNS:$domain" > "$tmpdir/server.ext"
+    openssl x509 -req -in "$tmpdir/server.csr" -CA "$tmpdir/ca.crt" -CAkey "$tmpdir/ca.key" \
+        -CAcreateserial -out "$tmpdir/server.crt" -days 3650 -sha256 \
+        -extfile "$tmpdir/server.ext" 2>/dev/null || { rm -rf "$tmpdir"; die "服务器证书签发失败"; }
+    mkdir -p /root/anytls
+    cp "$tmpdir/server.crt" "$tmpdir/server.key" "$tmpdir/ca.crt" /root/anytls/
     chmod 600 /root/anytls/server.key
     chmod 644 /root/anytls/ca.crt /root/anytls/server.crt
+    rm -rf "$tmpdir"
     ok "证书已生成"
 }
 
@@ -170,8 +184,8 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target
 EOF
-    systemctl daemon-reload
-    systemctl enable --now anytls-server.service
+    systemctl daemon-reload || die "systemd 重载失败"
+    systemctl enable --now anytls-server.service || warn "服务启用失败，请手动检查: journalctl -u anytls-server.service"
     ok "systemd 服务已安装并启动"
 }
 
@@ -198,11 +212,11 @@ do_install() {
 
     if [ $# -eq 0 ]; then
         echo -ne " ${CYAN}[?]${NC} 伪装域名 (SNI) ${DIM}[${DEF_DOMAIN}]${NC}: "
-        read -r domain; domain=${domain:-$DEF_DOMAIN}
+        read -r domain || domain="$DEF_DOMAIN"; domain=${domain:-$DEF_DOMAIN}
         echo -ne " ${CYAN}[?]${NC} 监听端口 ${DIM}[${DEF_PORT}]${NC}: "
-        read -r port; port=${port:-$DEF_PORT}
+        read -r port || port="$DEF_PORT"; port=${port:-$DEF_PORT}
         echo -ne " ${CYAN}[?]${NC} 密码（留空自动生成）: "
-        read -rs password; echo
+        read -rs password || password=""; echo
         password=${password:-$(gen_password)}
     fi
     [ -z "$port" ] && port=$DEF_PORT
@@ -219,7 +233,7 @@ do_install() {
     install_service "$domain" "$port" "$password" "/root/anytls/padding.txt"
 
     echo -ne " ${CYAN}[?]${NC} 配置防火墙放行 ${port} 端口？${DIM}[Y/n]${NC}: "
-    read -r ans
+    read -r ans || ans="y"
     case "$ans" in n|N|no|NO) ;; *) config_firewall "$port" ;; esac
 
     local ip pw_enc; ip=$(get_ip); pw_enc=$(urlencode "$password")
@@ -284,7 +298,7 @@ main_menu() {
         dim "  3) 查看状态"
         dim "  0) 退出"
         echo -ne " ${CYAN}[?]${NC} 请选择 ${DIM}[0-3]${NC}: "
-        read -r sel
+        read -r sel || break
         echo ""
         case "$sel" in
             1) do_install ;;
