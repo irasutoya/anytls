@@ -4,8 +4,6 @@ set -euo pipefail
 # AnyTLS Server Manager
 # Repo: https://github.com/irasutoya/anytls
 
-SELF_REPO_BASE="https://github.com/irasutoya/anytls"
-SELF_REPO="${SELF_REPO_BASE}/raw/main/anytls.sh"
 GH_RELEASE="https://github.com/ssrlive/anytls-rs/releases/latest/download"
 DEF_DOMAIN="gateway.icloud.com"
 DEF_PORT=443
@@ -20,30 +18,6 @@ warn() { echo -e " ${YELLOW}[!]${NC} $*"; }
 step() { echo -e " ${CYAN}[*]${NC} $*"; }
 head() { echo -e "\n ${PINK}${BOLD}>>${NC} ${BOLD}$*${NC}"; }
 dim()  { echo -e " ${DIM}$*${NC}"; }
-
-SELF="/root/anytls.sh"
-
-register_cmd() {
-    if [ ! -L /usr/local/bin/anytls ] || [ "$(readlink /usr/local/bin/anytls)" != "$SELF" ]; then
-        mkdir -p /usr/local/bin
-        ln -sf "$SELF" /usr/local/bin/anytls
-        step "注册系统命令: anytls"
-    fi
-}
-
-auto_update() {
-    local tmp; tmp=$(mktemp)
-    step "检查更新..."
-    curl -sSL "$SELF_REPO" -o "$tmp" 2>/dev/null || { rm -f "$tmp"; return; }
-    if ! cmp -s "$tmp" "$SELF" 2>/dev/null; then
-        cp "$tmp" "$SELF"
-        chmod +x "$SELF"
-        ok "已更新至最新版"
-        rm -f "$tmp"
-        exec bash "$SELF" "$@"
-    fi
-    rm -f "$tmp"
-}
 
 commit_id() {
     local rev=""
@@ -282,8 +256,6 @@ do_uninstall() {
     rm -f /etc/systemd/system/anytls-server.service
     systemctl daemon-reload 2>/dev/null || true
     rm -rf /root/anytls
-    rm -f "$SELF"
-    rm -f /usr/local/bin/anytls
     ok "AnyTLS 已卸载"
 }
 
@@ -320,29 +292,9 @@ main_menu() {
 }
 
 # ===== Entry =====
-
-# Pipe mode: download to canonical path first
-if [[ "$0" =~ ^/dev/fd/ ]] || [ "$0" = /dev/stdin ]; then
-    check_deps
-    step "正在安装 AnyTLS 管理脚本..."
-    curl -sSL "$SELF_REPO" -o "$SELF" || die "下载失败"
-    chmod +x "$SELF"
-    register_cmd
-    ok "安装完成，输入 anytls 即可运行"
-    exec bash "$SELF" "$@"
-fi
-
-# Redirect to canonical path if already installed elsewhere
-if [ "$0" != "$SELF" ] && [ -f "$SELF" ]; then
-    exec bash "$SELF" "$@"
-fi
-
-# Auto-update (only when running as /root/anytls.sh)
-auto_update "$@"
-
 case "${1:-}" in
     install)   shift; check_deps; do_install "$@" ;;
     uninstall) do_uninstall ;;
     status)    do_status ;;
-    *)         banner; main_menu ;;
+    *)         check_deps; banner; main_menu ;;
 esac
