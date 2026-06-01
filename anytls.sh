@@ -13,12 +13,13 @@ DEF_PORT=443
 PINK='\033[35m'; CYAN='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'
 RED='\033[31m'; BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
 
-die()  { echo -e " ${RED}[-]${NC} $*" >&2; exit 1; }
-ok()   { echo -e " ${GREEN}[+]${NC} $*"; }
-warn() { echo -e " ${YELLOW}[!]${NC} $*"; }
-step() { echo -e " ${CYAN}[*]${NC} $*"; }
-head() { echo -e "\n ${PINK}${BOLD}>>${NC} ${BOLD}$*${NC}"; }
-dim()  { echo -e " ${DIM}$*${NC}"; }
+die()   { echo -e " ${RED}[-]${NC} $*" >&2; exit 1; }
+ok()    { echo -e " ${GREEN}[+]${NC} $*"; }
+warn()  { echo -e " ${YELLOW}[!]${NC} $*"; }
+step()  { echo -e " ${CYAN}[*]${NC} $*"; }
+head()  { echo -e "\n ${PINK}${BOLD}>>${NC} ${BOLD}$*${NC}"; }
+dim()   { echo -e " ${DIM}$*${NC}"; }
+prompt(){ echo -ne " ${CYAN}[?]${NC} $*"; }
 
 cleanup() {
     local d; for d in "$@"; do rm -rf "$d" 2>/dev/null; done
@@ -55,7 +56,7 @@ check_deps() {
     local pm; pm=$(pkg_mgr)
     if [ -n "$pm" ]; then
         warn "缺少依赖: ${names[*]}"
-        echo -ne " ${CYAN}[?]${NC} 是否自动安装？${DIM}[Y/n]${NC} "
+        prompt "是否自动安装？${DIM}[Y/n]${NC} "
         read -r ans
         case "$ans" in n|N|no|NO) die "用户取消" ;; esac
         $pm "${missing[@]}" || die "安装依赖失败"
@@ -209,11 +210,11 @@ do_install() {
     local domain=${1:-} port=${2:-} password=${3:-}
 
     if [ $# -eq 0 ]; then
-        echo -ne " ${CYAN}[?]${NC} 伪装域名 (SNI) ${DIM}[${DEF_DOMAIN}]${NC}: "
+        prompt "伪装域名 (SNI) ${DIM}[${DEF_DOMAIN}]${NC}: "
         read -r domain || domain="$DEF_DOMAIN"; domain=${domain:-$DEF_DOMAIN}
-        echo -ne " ${CYAN}[?]${NC} 监听端口 ${DIM}[${DEF_PORT}]${NC}: "
+        prompt "监听端口 ${DIM}[${DEF_PORT}]${NC}: "
         read -r port || port="$DEF_PORT"; port=${port:-$DEF_PORT}
-        echo -ne " ${CYAN}[?]${NC} 密码（留空自动生成）: "
+        prompt "密码（留空自动生成）: "
         read -rs password || password=""; echo
         password=${password:-$(gen_password)}
     fi
@@ -230,7 +231,7 @@ do_install() {
     gen_padding_scheme
     install_service "$domain" "$port" "$password" "/root/anytls/padding.txt"
 
-    echo -ne " ${CYAN}[?]${NC} 配置防火墙放行 ${port} 端口？${DIM}[Y/n]${NC}: "
+    prompt "配置防火墙放行 ${port} 端口？${DIM}[Y/n]${NC}: "
     read -r ans || ans="y"
     case "$ans" in n|N|no|NO) ;; *) config_firewall "$port" ;; esac
 
@@ -252,17 +253,17 @@ do_install() {
     dim "    ${share_link}"
     echo ""
     step "Clash 配置"
-    echo -e "${DIM} - name: $ip
-   type: anytls
-   server: $ip
-   port: $port
-    password: $password
-   sni: $domain
-   udp: true
-   skip-cert-verify: true
-   alpn:
-     - h2
-     - http/1.1${NC}"
+    dim " - name: $ip"
+    dim "   type: anytls"
+    dim "   server: $ip"
+    dim "   port: $port"
+    dim "   password: $password"
+    dim "   sni: $domain"
+    dim "   udp: true"
+    dim "   skip-cert-verify: true"
+    dim "   alpn:"
+    dim "     - h2"
+    dim "     - http/1.1"
 }
 
 do_uninstall() {
@@ -293,12 +294,12 @@ main_menu() {
         dim "  2) 卸载"
         dim "  3) 查看状态"
         dim "  0) 退出"
-        echo -ne " ${CYAN}[?]${NC} 请选择 ${DIM}[0-3]${NC}: "
+        prompt "请选择 ${DIM}[0-3]${NC}: "
         read -r sel || break
         echo ""
         case "$sel" in
             1) do_install ;;
-            2) echo -ne " ${CYAN}[?]${NC} 确认卸载？${DIM}[y/N]${NC}: "
+            2) prompt "确认卸载？${DIM}[y/N]${NC}: "
                read -r ans || ans="n"
                case "$ans" in y|Y|yes|YES) do_uninstall ;; esac ;;
             3) do_status ;;
