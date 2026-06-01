@@ -251,7 +251,7 @@ do_install() {
     dim "    ${share_link}"
     echo ""
     step "Clash 配置"
-    echo -e " ${DIM}  - name: $ip
+    echo -e " ${DIM} - name: $ip
    type: anytls
    server: $ip
    port: $port
