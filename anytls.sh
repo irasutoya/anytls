@@ -207,7 +207,7 @@ do_install() {
     [ -z "$port" ] && port=$DEF_PORT
     [ -z "$password" ] && password=$(gen_password)
 
-    head "初始化部署環境"
+    head "初始化部署环境"
     step "检测架构..."
     local asset; asset=$(detect_asset)
     dim "目标: $asset"
