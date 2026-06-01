@@ -5,6 +5,7 @@ set -euo pipefail
 # Repo: https://github.com/irasutoya/anytls
 
 GH_RELEASE="https://github.com/ssrlive/anytls-rs/releases/latest/download"
+GH_PROXY="https://ghproxy.net/${GH_RELEASE}"
 DEF_DOMAIN="gateway.icloud.com"
 DEF_PORT=443
 
@@ -67,7 +68,9 @@ detect_asset() {
     case "$arch" in
         x86_64|amd64)
             local asset="anytls-x86_64-unknown-linux-musl.tar.gz"
-            local code; code=$(curl -sL -o /dev/null -w "%{http_code}" "$GH_RELEASE/$asset")
+            local code; code=$(curl -sL -o /dev/null -w "%{http_code}" "$GH_RELEASE/$asset" 2>/dev/null)
+            [ "$code" = 200 ] && { echo "$asset"; return; }
+            code=$(curl -sL -o /dev/null -w "%{http_code}" "$GH_PROXY/$asset" 2>/dev/null)
             [ "$code" = 200 ] && { echo "$asset"; return; }
             echo "anytls-x86_64-unknown-linux-gnu.tar.gz" ;;
         aarch64|arm64)
@@ -77,11 +80,14 @@ detect_asset() {
 }
 
 download() {
-    local asset=$1 url="$GH_RELEASE/$asset"
+    local asset=$1 url="$GH_RELEASE/$asset" fallback="$GH_PROXY/$asset"
     local tmpdir; tmpdir=$(mktemp -d)
 
     step "下载 $asset ..."
-    curl -#SL "$url" -o "$tmpdir/$asset" || die "下载失败"
+    curl -#SL "$url" -o "$tmpdir/$asset" || {
+        warn "GitHub 直连失败，尝试代理 ..."
+        curl -#SL "$fallback" -o "$tmpdir/$asset" || die "下载失败（直连和代理均不可用）"
+    }
 
     tar -xzf "$tmpdir/$asset" -C "$tmpdir" || die "解压失败"
     mkdir -p /root/anytls
