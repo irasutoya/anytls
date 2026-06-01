@@ -25,8 +25,9 @@ cleanup() {
 }
 
 commit_id() {
-    local rev; rev=$(curl -sS --max-time 3 "https://api.github.com/repos/irasutoya/anytls/commits/main" 2>/dev/null)
-    rev=$(echo "$rev" | grep -m1 '"sha"' | cut -d'"' -f4 | head -c 7)
+    local rev; rev=$(curl -sS --max-time 3 "https://api.github.com/repos/irasutoya/anytls/commits/main" 2>/dev/null) || true
+    rev=$(echo "$rev" | grep -m1 '"sha"' | cut -d'"' -f4) || true
+    rev=${rev:0:7}
     [ -n "$rev" ] && echo "@${rev}" || true
 }
 
