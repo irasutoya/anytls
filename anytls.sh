@@ -74,11 +74,10 @@ detect_asset() {
     [ -n "$tag" ] && ver=${tag#v}
 
     case "$arch" in
-        x86_64|amd64) echo "anytls_${ver}_linux_amd64.zip" ;;
-        aarch64|arm64) echo "anytls_${ver}_linux_arm64.zip" ;;
+        x86_64|amd64) echo "anytls_${ver}_linux_amd64.zip $ver" ;;
+        aarch64|arm64) echo "anytls_${ver}_linux_arm64.zip $ver" ;;
         *) die "不支持的架构: $arch" ;;
     esac
-    echo "$ver"
 }
 
 download() {
@@ -175,9 +174,8 @@ do_install() {
 
     head "初始化部署环境"
     step "检测架构..."
-    local asset_info; asset_info=$(detect_asset)
-    local asset; asset=$(echo "$asset_info" | head -1)
-    local ver; ver=$(echo "$asset_info" | tail -1)
+    local asset ver
+    read -r asset ver <<< "$(detect_asset)"
     dim "目标: $asset"
 
     download "$asset" "$ver"
