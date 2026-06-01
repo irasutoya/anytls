@@ -44,14 +44,11 @@ pkg_mgr() {
 }
 
 check_deps() {
-    local need_tui=${1:-0} missing=() names=()
+    local missing=() names=()
     for cmd in curl tar openssl; do
         command -v "$cmd" >/dev/null || { missing+=("$cmd"); names+=("$cmd"); }
     done
     command -v systemctl >/dev/null || { missing+=("systemd"); names+=("systemd"); }
-    if [ "$need_tui" = 1 ] && ! command -v whiptail >/dev/null; then
-        missing+=(whiptail); names+=(whiptail)
-    fi
     [ ${#missing[@]} -eq 0 ] && return 0
 
     local pm; pm=$(pkg_mgr)
@@ -83,24 +80,9 @@ detect_asset() {
 download() {
     local asset=$1 url="$GH_RELEASE/$asset"
     local tmpdir; tmpdir=$(mktemp -d)
-    local total; total=$(curl -sI "$url" | grep -i content-length | awk '{print $2}' | tr -d '\r\n' || echo 0)
 
-    if [ "$total" -gt 0 ] && command -v whiptail >/dev/null; then
-        (
-            curl -sL "$url" -o "$tmpdir/$asset" &
-            local cpid=$!
-            while kill -0 $cpid 2>/dev/null; do
-                sleep 0.3
-                local cur; cur=$(stat -c%s "$tmpdir/$asset" 2>/dev/null || echo 0)
-                local pct=$((cur * 100 / total)); [ "$pct" -gt 100 ] && pct=100
-                echo "$pct"
-            done
-            echo 100; wait
-        ) | whiptail --gauge "正在下载 $asset ..." 6 60 0
-    else
-        step "下载 $asset ..."
-        curl -sL "$url" -o "$tmpdir/$asset" || die "下载失败"
-    fi
+    step "下载 $asset ..."
+    curl -#SL "$url" -o "$tmpdir/$asset" || die "下载失败"
 
     tar -xzf "$tmpdir/$asset" -C "$tmpdir" || die "解压失败"
     mkdir -p /root/anytls
@@ -208,13 +190,15 @@ urlencode() {
 do_install() {
     [ "$(id -u)" -ne 0 ] && die "请以 root 运行"
     local domain=${1:-} port=${2:-} password=${3:-}
-    local tui=0; [ $# -eq 0 ] && tui=1
 
-    if [ "$tui" = 1 ]; then
-        command -v whiptail >/dev/null || die "TUI 模式需要 whiptail"
-        domain=$(whiptail --title "AnyTLS" --inputbox "伪装域名 (SNI)" 8 50 "$DEF_DOMAIN" 3>&1 1>&2 2>&3) || return 1
-        port=$(whiptail --title "AnyTLS" --inputbox "监听端口" 8 50 "$DEF_PORT" 3>&1 1>&2 2>&3) || return 1
-        password=$(whiptail --title "AnyTLS" --passwordbox "密码（留空自动生成）" 8 50 3>&1 1>&2 2>&3) || return 1
+    if [ $# -eq 0 ]; then
+        echo -ne " ${CYAN}[?]${NC} 伪装域名 (SNI) ${DIM}[${DEF_DOMAIN}]${NC}: "
+        read -r domain; domain=${domain:-$DEF_DOMAIN}
+        echo -ne " ${CYAN}[?]${NC} 监听端口 ${DIM}[${DEF_PORT}]${NC}: "
+        read -r port; port=${port:-$DEF_PORT}
+        echo -ne " ${CYAN}[?]${NC} 密码（留空自动生成）: "
+        read -rs password; echo
+        password=${password:-$(gen_password)}
     fi
     [ -z "$port" ] && port=$DEF_PORT
     [ -z "$password" ] && password=$(gen_password)
@@ -229,11 +213,9 @@ do_install() {
     gen_padding_scheme
     install_service "$domain" "$port" "$password" "/root/anytls/padding.txt"
 
-    if [ "$tui" = 1 ]; then
-        whiptail --title "AnyTLS" --yesno "是否自动配置防火墙放行 $port 端口？" 8 50 && config_firewall "$port"
-    else
-        config_firewall "$port"
-    fi
+    echo -ne " ${CYAN}[?]${NC} 配置防火墙放行 ${port} 端口？${DIM}[Y/n]${NC}: "
+    read -r ans
+    case "$ans" in n|N|no|NO) ;; *) config_firewall "$port" ;; esac
 
     local ip pw_enc; ip=$(get_ip); pw_enc=$(urlencode "$password")
     local share_link="anytls://${ip}:${port}?password=${pw_enc}&sni=${domain}"
@@ -298,33 +280,40 @@ do_self_update() {
     exec "$0" "$@"
 }
 
-# ===== TUI Menu =====
+# ===== Terminal Menu =====
 
 main_menu() {
-    check_deps 1
+    check_deps
     while true; do
-        local sel
-        sel=$(whiptail --title "AnyTLS 管理脚本" --menu "选择操作:" 15 50 4 \
-            "1" "安装" \
-            "2" "卸载" \
-            "3" "查看状态" \
-            "4" "升级脚本" \
-            3>&1 1>&2 2>&3) || break
+        echo ""
+        head "操作菜单"
+        dim "  1) 安装"
+        dim "  2) 卸载"
+        dim "  3) 查看状态"
+        dim "  4) 升级脚本"
+        dim "  0) 退出"
+        echo -ne " ${CYAN}[?]${NC} 请选择 ${DIM}[0-4]${NC}: "
+        read -r sel
+        echo ""
         case "$sel" in
-            1) do_install && whiptail --title "AnyTLS" --msgbox "完成，详情见终端输出" 8 40 ;;
-            2) if whiptail --title "AnyTLS" --yesno "确认卸载？" 8 40; then do_uninstall; whiptail --title "AnyTLS" --msgbox "卸载完成" 8 40; fi ;;
-            3) local st; st=$(do_status 2>&1)
-               whiptail --title "AnyTLS 状态" --scrolltext --msgbox "$st" 20 70 ;;
-            4) whiptail --title "AnyTLS" --yesno "确认升级脚本？" 8 40 && do_self_update ;;
+            1) do_install ;;
+            2) echo -ne " ${CYAN}[?]${NC} 确认卸载？${DIM}[y/N]${NC}: "
+               read -r ans
+               case "$ans" in y|Y|yes|YES) do_uninstall ;; esac ;;
+            3) do_status ;;
+            4) echo -ne " ${CYAN}[?]${NC} 确认升级脚本？${DIM}[y/N]${NC}: "
+               read -r ans
+               case "$ans" in y|Y|yes|YES) do_self_update ;; esac ;;
+            0) ok "再见"; exit 0 ;;
         esac
     done
 }
 
 # ===== Entry =====
 case "${1:-}" in
-    install)      shift; check_deps 0; do_install "$@" ;;
-    uninstall)    check_deps 0; do_uninstall ;;
-    status)       check_deps 0; do_status ;;
+    install)      shift; do_install "$@" ;;
+    uninstall)    do_uninstall ;;
+    status)       do_status ;;
     self-update|self_update) do_self_update "$@" ;;
-    *)            banner; main_menu ;;
+    *)            check_deps; banner; main_menu ;;
 esac
