@@ -231,7 +231,7 @@ do_install() {
     dim "  导入链接"
     dim "    ${share_link}"
     echo ""
-    step "clash配置"
+    step "Clash配置"
     dim " - name: anytls"
     dim "   type: anytls"
     dim "   server: $ip"
