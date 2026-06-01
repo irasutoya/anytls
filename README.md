@@ -50,10 +50,4 @@ proxies:
     skip-cert-verify: false
 ```
 
-### 命令行客户端（anytls-client）
-
-```bash
-anytls-client -l 127.0.0.1:3080 -s <服务器IP>:<端口> -p <密码> --sni <域名> --root-cert /root/ca.crt
-```
-
 CA 证书位于 `/root/ca.crt`。

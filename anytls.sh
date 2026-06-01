@@ -213,10 +213,7 @@ do_install() {
     info "    sni: $domain"
     info "    udp: true"
     info "    skip-cert-verify: false"
-    echo ""
-    info " 客户端命令:"
-    info "  anytls-client -l 127.0.0.1:3080 -s $ip:$port -p $password --sni $domain --root-cert /root/ca.crt"
-    echo ""
+    info ""
     info " CA 证书: /root/ca.crt"
     info "======================================"
 }
