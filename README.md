@@ -1,6 +1,6 @@
 # AnyTLS Server Manager
 
-一键安装 [anytls-go](https://github.com/anytls/anytls-go) 服务端，终端交互式菜单，支持 Linux x86_64 / aarch64。banner 自动显示 GitHub 最新 commit 编号。
+一键安装 [sing-box](https://github.com/SagerNet/sing-box) anytls 服务端，终端交互式菜单，支持 Linux x86_64 / aarch64。banner 自动显示 GitHub 最新 commit 编号。
 
 ## 一键安装
 
@@ -15,9 +15,6 @@ curl -sSL https://raw.githubusercontent.com/irasutoya/anytls/main/anytls.sh -o a
 bash anytls.sh
 ```
 
-> 管道运行时不支持 `self-update`，本地保存后可正常升级。
-> `self-update` 会把脚本写入 `/root/anytls.sh`，后续推荐通过 `bash /root/anytls.sh` 运行。
-
 ## 命令行
 
 ```bash
@@ -29,9 +26,6 @@ bash anytls.sh uninstall
 
 # 查看服务状态
 bash anytls.sh status
-
-# 升级脚本自身
-bash anytls.sh self-update
 ```
 
 ## 客户端配置
@@ -51,7 +45,7 @@ anytls://<服务器IP>:<端口>?password=<密码>&sni=<域名>&allowInsecure=1
     type: anytls
     server: <服务器IP>
     port: <端口>
-    password: "<密码>"
+    password: <密码>
     sni: <域名>
     udp: true
     skip-cert-verify: true
@@ -64,6 +58,9 @@ anytls://<服务器IP>:<端口>?password=<密码>&sni=<域名>&allowInsecure=1
 
 | 文件 | 用途 |
 |---|---|---|
-| `/root/anytls.sh` | 管理脚本本体（self-update 后固定于此） |
-| `/root/anytls/anytls-server` | 服务端二进制 |
+| `/root/anytls/sing-box` | 服务端二进制 |
+| `/root/anytls/config.json` | sing-box 配置（anytls inbound） |
+| `/root/anytls/ca.crt` | CA 根证书 |
+| `/root/anytls/server.crt` | 服务端证书（自签名） |
+| `/root/anytls/server.key` | 服务端私钥 |
 | `/etc/systemd/system/anytls-server.service` | systemd 服务单元 |

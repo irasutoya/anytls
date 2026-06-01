@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# AnyTLS Server Manager
+# AnyTLS Server Manager (sing-box)
 # Repo: https://github.com/irasutoya/anytls
 
-GH_RELEASE="https://github.com/anytls/anytls-go/releases"
-GH_PROXY="https://ghproxy.net/${GH_RELEASE}"
+GH_RELEASE="https://github.com/SagerNet/sing-box/releases"
 DEF_DOMAIN="gateway.icloud.com"
 DEF_PORT=443
-FALLBACK_VER="0.0.12"
 
 # Cyberpunk palette
 PINK='\033[35m'; CYAN='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'
@@ -48,7 +46,7 @@ pkg_mgr() {
 
 check_deps() {
     local missing=() names=()
-    for cmd in curl unzip openssl; do
+    for cmd in curl tar openssl; do
         command -v "$cmd" >/dev/null || { missing+=("$cmd"); names+=("$cmd"); }
     done
     command -v systemctl >/dev/null || { missing+=("systemd"); names+=("systemd"); }
@@ -68,14 +66,13 @@ check_deps() {
 
 detect_asset() {
     local arch; arch=$(uname -m) || die "无法检测系统架构"
-    local ver=$FALLBACK_VER
     local tag
-    tag=$(curl -sS --max-time 5 "https://api.github.com/repos/anytls/anytls-go/releases/latest" 2>/dev/null | grep -m1 '"tag_name"' | cut -d'"' -f4) || true
-    [ -n "$tag" ] && ver=${tag#v}
+    tag=$(curl -sS --max-time 5 "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep -m1 '"tag_name"' | cut -d'"' -f4) || die "获取最新版本失败"
+    local ver=${tag#v}
 
     case "$arch" in
-        x86_64|amd64) echo "anytls_${ver}_linux_amd64.zip $ver" ;;
-        aarch64|arm64) echo "anytls_${ver}_linux_arm64.zip $ver" ;;
+        x86_64|amd64) echo "sing-box-${ver}-linux-amd64.tar.gz $ver" ;;
+        aarch64|arm64) echo "sing-box-${ver}-linux-arm64.tar.gz $ver" ;;
         *) die "不支持的架构: $arch" ;;
     esac
 }
@@ -83,23 +80,22 @@ detect_asset() {
 download() {
     local asset=$1 ver=$2
     local tag="v${ver}"
-    local url="$GH_RELEASE/download/${tag}/${asset}" fallback="$GH_PROXY/download/${tag}/${asset}"
+    local url="$GH_RELEASE/download/${tag}/${asset}"
     local tmpdir; tmpdir=$(mktemp -d) || die "创建临时目录失败"
     trap "cleanup '$tmpdir'" EXIT
 
     step "下载 $asset ..."
-    curl -#SL "$url" -o "$tmpdir/$asset" || {
-        warn "GitHub 直连失败，尝试代理 ..."
-        curl -#SL "$fallback" -o "$tmpdir/$asset" || die "下载失败（直连和代理均不可用）"
-    }
+    curl -#SL "$url" -o "$tmpdir/$asset" || die "下载失败: $url"
 
-    unzip -o "$tmpdir/$asset" -d "$tmpdir" >/dev/null 2>&1 || die "解压失败"
+    tar -xzf "$tmpdir/$asset" -C "$tmpdir" || die "解压失败"
+    local bindir; bindir=$(find "$tmpdir" -maxdepth 1 -type d -name "sing-box-*" | head -1) || true
+    [ -n "$bindir" ] || die "解压目录结构异常"
     mkdir -p /root/anytls
-    cp -f "$tmpdir/anytls-server" /root/anytls/anytls-server
-    chmod +x /root/anytls/anytls-server
+    cp -f "$bindir/sing-box" /root/anytls/sing-box
+    chmod +x /root/anytls/sing-box
     rm -rf "$tmpdir"
     trap - EXIT
-    ok "二进制安装完成"
+    ok "sing-box 安装完成"
 }
 
 gen_password() {
@@ -114,8 +110,83 @@ gen_password() {
     echo "${h1}-${h2}-4${h3:1:3}-${h4_first}${h4:1:3}-${h5}"
 }
 
+gen_certs() {
+    local domain=$1 tmpdir; tmpdir=$(mktemp -d)
+    openssl genrsa -out "$tmpdir/ca.key" 4096 2>/dev/null || { rm -rf "$tmpdir"; die "CA 密钥生成失败"; }
+    openssl req -x509 -new -nodes -key "$tmpdir/ca.key" -sha256 -days 3650 \
+        -subj "/C=US/O=Apple Inc./CN=Apple Root CA" -out "$tmpdir/ca.crt" 2>/dev/null || { rm -rf "$tmpdir"; die "CA 证书生成失败"; }
+    openssl genrsa -out "$tmpdir/server.key" 2048 2>/dev/null || { rm -rf "$tmpdir"; die "服务器密钥生成失败"; }
+    openssl req -new -key "$tmpdir/server.key" \
+        -subj "/C=US/ST=California/L=Cupertino/O=Apple Inc./CN=$domain" \
+        -out "$tmpdir/server.csr" 2>/dev/null || { rm -rf "$tmpdir"; die "CSR 生成失败"; }
+    echo "subjectAltName=DNS:$domain" > "$tmpdir/server.ext"
+    openssl x509 -req -in "$tmpdir/server.csr" -CA "$tmpdir/ca.crt" -CAkey "$tmpdir/ca.key" \
+        -CAcreateserial -out "$tmpdir/server.crt" -days 3650 -sha256 \
+        -extfile "$tmpdir/server.ext" 2>/dev/null || { rm -rf "$tmpdir"; die "服务器证书签发失败"; }
+    mkdir -p /root/anytls
+    cp "$tmpdir/server.crt" "$tmpdir/server.key" "$tmpdir/ca.crt" /root/anytls/
+    chmod 600 /root/anytls/server.key
+    chmod 644 /root/anytls/ca.crt /root/anytls/server.crt
+    rm -rf "$tmpdir"
+    ok "证书已生成"
+}
+
+gen_config() {
+    local domain=$1 port=$2 password=$3
+    cat > /root/anytls/config.json <<EOF
+{
+  "log": {
+    "level": "warn"
+  },
+  "inbounds": [
+    {
+      "type": "anytls",
+      "tag": "anytls-in",
+      "listen": "::",
+      "listen_port": ${port},
+      "users": [
+        {
+          "name": "anytls",
+          "password": "${password}"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "${domain}",
+        "certificate_path": "/root/anytls/server.crt",
+        "key_path": "/root/anytls/server.key"
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "final": "direct"
+  }
+}
+EOF
+    chmod 644 /root/anytls/config.json
+    ok "配置文件已生成"
+}
+
+config_firewall() {
+    local port=$1
+    if command -v ufw >/dev/null; then
+        ufw allow "$port/tcp" >/dev/null 2>&1 && ok "ufw 已放行 $port/tcp"
+    elif command -v iptables >/dev/null && command -v iptables-save >/dev/null; then
+        iptables -C INPUT -p tcp --dport "$port" -j ACCEPT 2>/dev/null || {
+            iptables -A INPUT -p tcp --dport "$port" -j ACCEPT
+            iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+            ok "iptables 已放行 $port/tcp"
+        }
+    fi
+}
+
 install_service() {
-    local port=$1 password=$2
     cat > /etc/systemd/system/anytls-server.service <<EOF
 [Unit]
 Description=AnyTLS Server
@@ -124,8 +195,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-Environment=LOG_LEVEL=warn
-ExecStart=/root/anytls/anytls-server -l 0.0.0.0:${port} -p ${password}
+ExecStart=/root/anytls/sing-box run -c /root/anytls/config.json -D /root/anytls
 Restart=on-failure
 RestartSec=3
 
@@ -180,7 +250,9 @@ do_install() {
     dim "目标: $asset"
 
     download "$asset" "$ver"
-    install_service "$port" "$password"
+    gen_certs "$domain"
+    gen_config "$domain" "$port" "$password"
+    install_service
 
     prompt "配置防火墙放行 ${port} 端口？${DIM}[Y/n]${NC}: "
     read -r ans || ans="y"
@@ -195,6 +267,9 @@ do_install() {
     dim "  地址  ${ip}:${port}"
     dim "  密码  ${password}"
     dim "  SNI   ${domain}"
+    step "本地文件"
+    dim "  CA 证书     /root/anytls/ca.crt"
+    dim "  配置文件    /root/anytls/config.json"
     echo ""
     step "Shadowrocket / V2RayN"
     dim "  导入链接"
