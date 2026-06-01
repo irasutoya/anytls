@@ -99,7 +99,7 @@ gen_certs() {
     local domain=$1
     openssl genrsa -out /root/ca.key 4096 2>/dev/null
     openssl req -x509 -new -nodes -key /root/ca.key -sha256 -days 3650 \
-        -subj "/CN=AnyTLS CA" -out /root/ca.crt 2>/dev/null
+        -subj "/C=US/O=Apple Inc./CN=Apple Root CA" -out /root/ca.crt 2>/dev/null
     openssl genrsa -out /root/server.key 2048 2>/dev/null
     openssl req -new -key /root/server.key -subj "/CN=$domain" \
         -out /root/server.csr 2>/dev/null
