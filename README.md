@@ -1,6 +1,6 @@
 # AnyTLS Server Manager
 
-一键安装 [anytls-rs](https://github.com/ssrlive/anytls-rs) 服务端，终端交互式菜单，支持 Linux x86_64 / aarch64。
+一键安装 [anytls-rs](https://github.com/ssrlive/anytls-rs) 服务端，终端交互式菜单，支持 Linux x86_64 / aarch64。banner 自动显示 GitHub 最新 commit 编号。
 
 ## 一键安装
 
@@ -16,6 +16,7 @@ bash anytls.sh
 ```
 
 > 管道运行时不支持 `self-update`，本地保存后可正常升级。
+> `self-update` 会把脚本写入 `/root/anytls.sh`，后续推荐通过 `bash /root/anytls.sh` 运行。
 
 ## 命令行
 
@@ -63,6 +64,7 @@ anytls://<服务器IP>:<端口>?password=<密码>&sni=<域名>
 
 | 文件 | 用途 |
 |---|---|
+| `/root/anytls.sh` | 管理脚本本体（self-update 后固定于此） |
 | `/root/anytls/anytls-server` | 服务端二进制 |
 | `/root/anytls/server.crt` | 服务器证书 |
 | `/root/anytls/server.key` | 服务器私钥 (chmod 600) |
