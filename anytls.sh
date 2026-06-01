@@ -93,7 +93,7 @@ detect_asset() {
     case "$arch" in
         x86_64|amd64)
             local asset="anytls-x86_64-unknown-linux-musl.tar.gz"
-            local code; code=$(curl -s -o /dev/null -w "%{http_code}" "$GH_RELEASE/$asset")
+            local code; code=$(curl -sL -o /dev/null -w "%{http_code}" "$GH_RELEASE/$asset")
             [ "$code" = 200 ] && { echo "$asset"; return; }
             echo "anytls-x86_64-unknown-linux-gnu.tar.gz" ;;
         aarch64|arm64)
