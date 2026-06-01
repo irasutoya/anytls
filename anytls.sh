@@ -25,7 +25,11 @@ commit_id() {
     local rev=""
     rev=$(git rev-parse --short HEAD 2>/dev/null) || rev=""
     if [ -z "$rev" ]; then
-        rev=$(curl -sS --max-time 3 "https://api.github.com/repos/irasutoya/anytls/commits/main" | grep -m1 '"sha"' | cut -d'"' -f4 | head -c 7) 2>/dev/null || rev=""
+        if command -v jq >/dev/null; then
+            rev=$(curl -sS --max-time 5 "https://api.github.com/repos/irasutoya/anytls/commits/main" 2>/dev/null | jq -r '.sha[:7]' 2>/dev/null) || rev=""
+        else
+            rev=$(curl -sS --max-time 5 "https://api.github.com/repos/irasutoya/anytls/commits/main" 2>/dev/null | grep -m1 '"sha"' | cut -d'"' -f4 | head -c 7) || rev=""
+        fi
     fi
     [ -n "$rev" ] && echo "@${rev}" || true
 }
@@ -269,6 +273,12 @@ do_status() {
 }
 
 do_self_update() {
+    if [ ! -f "$0" ] || [[ "$0" == /dev/fd/* ]]; then
+        warn "脚本从管道运行，无法原地更新"
+        dim "请重新下载:"
+        dim "  curl -sSL ${SELF_REPO} -o anytls.sh && bash anytls.sh"
+        return
+    fi
     local tmp; tmp=$(mktemp)
     step "正在检查更新..."
     curl -sSL "$SELF_REPO" -o "$tmp" || { rm -f "$tmp"; die "下载脚本失败"; }
