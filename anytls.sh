@@ -270,7 +270,7 @@ do_status() {
 
 do_self_update() {
     local tmp; tmp=$(mktemp)
-    echo "正在检查更新..."
+    step "正在检查更新..."
     curl -sSL "$SELF_REPO" -o "$tmp" || { rm -f "$tmp"; die "下载脚本失败"; }
     cp "$tmp" "$0"
     chmod +x "$0"
@@ -284,7 +284,6 @@ do_self_update() {
 main_menu() {
     check_deps
     while true; do
-        echo ""
         head "操作菜单"
         dim "  1) 安装"
         dim "  2) 卸载"
