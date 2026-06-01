@@ -44,6 +44,8 @@ bash anytls.sh self-update
 anytls://<服务器IP>:<端口>?password=<密码>&sni=<域名>
 ```
 
+> 客户端需开启跳过证书验证（Shadowrocket 开启"allow insecure"，V2RayN 勾选"allowInsecure"）。
+
 ### Clash Meta / Mihomo
 
 ```yaml

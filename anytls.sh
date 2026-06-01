@@ -252,6 +252,7 @@ do_install() {
     step "Shadowrocket / V2RayN"
     dim "  导入链接"
     dim "    ${share_link}"
+    dim "  注意: 客户端需开启跳过证书验证 (allowInsecure / skip-cert-verify)"
     echo ""
     step "Clash 配置"
     dim " - name: $ip"
