@@ -9,10 +9,23 @@ GH_RELEASE="https://github.com/ssrlive/anytls-rs/releases/latest/download"
 DEF_DOMAIN="gateway.icloud.com"
 DEF_PORT=443
 
-RED='\033[31m'; GREEN='\033[32m'; YELLOW='\033[33m'; NC='\033[0m'
-die() { echo -e "${RED}$*${NC}" >&2; exit 1; }
-info() { echo -e "${GREEN}$*${NC}"; }
-warn() { echo -e "${YELLOW}$*${NC}"; }
+# Cyberpunk palette
+PINK='\033[35m'; CYAN='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'
+RED='\033[31m'; BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
+
+die()  { echo -e " ${RED}[-]${NC} $*" >&2; exit 1; }
+ok()   { echo -e " ${GREEN}[+]${NC} $*"; }
+warn() { echo -e " ${YELLOW}[!]${NC} $*"; }
+step() { echo -e " ${CYAN}[*]${NC} $*"; }
+head() { echo -e "\n ${PINK}${BOLD}>>${NC} ${BOLD}$*${NC}"; }
+dim()  { echo -e " ${DIM}$*${NC}"; }
+nfo()  { echo -e "   $*"; }
+
+hr()  { printf '%*s\n' 40 '' | tr ' ' '═'; }
+
+banner() {
+    head "AnyTLS Server Manager v0.3"
+}
 
 pkg_mgr() {
     command -v apt-get >/dev/null && { echo "apt-get install -y"; return; }
@@ -36,7 +49,8 @@ check_deps() {
     local pm; pm=$(pkg_mgr)
     if [ -n "$pm" ]; then
         warn "缺少依赖: ${names[*]}"
-        echo -n "是否自动安装？[Y/n] "; read -r ans
+        echo -ne " ${CYAN}[?]${NC} 是否自动安装？${DIM}[Y/n]${NC} "
+        read -r ans
         case "$ans" in n|N|no|NO) die "用户取消" ;; esac
         $pm "${missing[@]}" || die "安装依赖失败"
     else
@@ -76,7 +90,7 @@ download() {
             echo 100; wait
         ) | whiptail --gauge "正在下载 $asset ..." 6 60 0
     else
-        echo "正在下载 $asset ..."
+        step "下载 $asset ..."
         curl -sL "$url" -o "$tmpdir/$asset" || die "下载失败"
     fi
 
@@ -85,7 +99,7 @@ download() {
     cp -f "$tmpdir/anytls-server" /root/anytls/anytls-server
     chmod +x /root/anytls/anytls-server
     rm -rf "$tmpdir"
-    info "✓ 二进制安装完成"
+    ok "二进制安装完成"
 }
 
 gen_password() {
@@ -112,7 +126,7 @@ gen_certs() {
     rm -f /root/anytls/server.csr /root/anytls/server.ext /root/anytls/ca.srl /root/anytls/ca.key
     chmod 600 /root/anytls/server.key
     chmod 644 /root/anytls/ca.crt /root/anytls/server.crt
-    info "✓ 证书已生成"
+    ok "证书已生成"
 }
 
 gen_padding_scheme() {
@@ -128,18 +142,18 @@ stop=8
 7=500-1000
 EOF
     chmod 644 /root/anytls/padding.txt
-    info "✓ padding scheme 已生成"
+    ok "padding scheme 已生成"
 }
 
 config_firewall() {
     local port=$1
     if command -v ufw >/dev/null; then
-        ufw allow "$port/tcp" >/dev/null 2>&1 && info "✓ ufw 已放行 $port/tcp"
+        ufw allow "$port/tcp" >/dev/null 2>&1 && ok "ufw 已放行 $port/tcp"
     elif command -v iptables >/dev/null && command -v iptables-save >/dev/null; then
         iptables -C INPUT -p tcp --dport "$port" -j ACCEPT 2>/dev/null || {
             iptables -A INPUT -p tcp --dport "$port" -j ACCEPT
             iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
-            info "✓ iptables 已放行 $port/tcp"
+            ok "iptables 已放行 $port/tcp"
         }
     fi
 }
@@ -163,7 +177,7 @@ WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
     systemctl enable --now anytls-server.service
-    info "✓ systemd 服务已安装并启动"
+    ok "systemd 服务已安装并启动"
 }
 
 get_ip() {
@@ -197,9 +211,10 @@ do_install() {
     [ -z "$port" ] && port=$DEF_PORT
     [ -z "$password" ] && password=$(gen_password)
 
-    warn "检测架构..."
+    head "初始化部署環境"
+    step "检测架构..."
     local asset; asset=$(detect_asset)
-    info "目标文件: $asset"
+    nfo "${CYAN}目标:${NC} $asset"
 
     download "$asset"
     gen_certs "$domain"
@@ -214,33 +229,38 @@ do_install() {
 
     local ip pw_enc; ip=$(get_ip); pw_enc=$(urlencode "$password")
     local share_link="anytls://${ip}:${port}?password=${pw_enc}&sni=${domain}"
+
+    echo -e "\n ${PINK}${BOLD}╔══════════════════════════════════════════════╗${NC}"
+    echo -e " ${PINK}${BOLD}║${NC}         ${CYAN}${BOLD}❯ ANYTLS 部署完成 ❮${NC}          ${PINK}${BOLD}║${NC}"
+    echo -e " ${PINK}${BOLD}╚══════════════════════════════════════════════╝${NC}"
     echo ""
-    info "======================================"
-    info "  AnyTLS 安装完成!"
-    info "======================================"
-    info "  地址: $ip:$port"
-    info "  密码: $password"
-    info "  SNI:  $domain"
+    echo -e " ${CYAN}${BOLD}节点信息${NC}"
+    nfo "${DIM}地址${NC}  ${ip}:${port}"
+    nfo "${DIM}密码${NC}  ${password}"
+    nfo "${DIM}SNI${NC}   ${domain}"
     echo ""
-    info " Shadowrocket / V2RayN 导入链接:"
-    info "  $share_link"
+    echo -e " ${CYAN}${BOLD}Shadowrocket / V2RayN${NC}"
+    nfo "${DIM}导入链接${NC}"
+    nfo " ${PINK}${share_link}${NC}"
     echo ""
-    info " Clash Meta / Mihomo 配置:"
-    info "  - name: anytls"
-    info "    type: anytls"
-    info "    server: $ip"
-    info "    port: $port"
-    info "    password: \"$password\""
-    info "    sni: $domain"
-    info "    udp: true"
-    info "    skip-cert-verify: false"
-    info "    alpn:"
-    info "      - h2"
-    info "      - http/1.1"
-    info ""
-    info " CA 证书: /root/anytls/ca.crt"
-    info " Padding scheme: /root/anytls/padding.txt"
-    info "======================================"
+    echo -e " ${CYAN}${BOLD}Clash Meta / Mihomo${NC}"
+    nfo "${DIM}proxy 配置${NC}"
+    nfo " ${PINK}- name: anytls${NC}"
+    nfo " ${PINK}  type: anytls${NC}"
+    nfo " ${PINK}  server: $ip${NC}"
+    nfo " ${PINK}  port: $port${NC}"
+    nfo " ${PINK}  password: \"$password\"${NC}"
+    nfo " ${PINK}  sni: $domain${NC}"
+    nfo " ${PINK}  udp: true${NC}"
+    nfo " ${PINK}  skip-cert-verify: false${NC}"
+    nfo " ${PINK}  alpn:${NC}"
+    nfo " ${PINK}    - h2${NC}"
+    nfo " ${PINK}    - http/1.1${NC}"
+    echo ""
+    echo -e " ${CYAN}${BOLD}本地文件${NC}"
+    nfo "${DIM}CA 证书${NC}    /root/anytls/ca.crt"
+    nfo "${DIM}Padding${NC}     /root/anytls/padding.txt"
+    echo ""
 }
 
 do_uninstall() {
@@ -250,14 +270,14 @@ do_uninstall() {
     rm -f /etc/systemd/system/anytls-server.service
     systemctl daemon-reload 2>/dev/null || true
     rm -rf /root/anytls
-    info "✓ AnyTLS 已卸载"
+    ok "AnyTLS 已卸载"
 }
 
 do_status() {
     if [ -f /etc/systemd/system/anytls-server.service ]; then
         systemctl status anytls-server.service 2>&1
     else
-        echo "AnyTLS 服务未安装"
+        warn "AnyTLS 服务未安装"
     fi
 }
 
@@ -268,7 +288,7 @@ do_self_update() {
     cp "$tmp" "$0"
     chmod +x "$0"
     rm -f "$tmp"
-    info "✓ 脚本已更新"
+    ok "脚本已更新"
     exec "$0" "$@"
 }
 
@@ -300,5 +320,5 @@ case "${1:-}" in
     uninstall)    check_deps 0; do_uninstall ;;
     status)       check_deps 0; do_status ;;
     self-update|self_update) do_self_update "$@" ;;
-    *)            main_menu ;;
+    *)            banner; main_menu ;;
 esac
