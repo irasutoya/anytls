@@ -4,7 +4,8 @@ set -euo pipefail
 # AnyTLS Server Manager
 # Repo: https://github.com/irasutoya/anytls
 
-SELF_REPO="https://raw.githubusercontent.com/irasutoya/anytls/main/anytls.sh"
+SELF_REPO_BASE="https://github.com/irasutoya/anytls"
+SELF_REPO="${SELF_REPO_BASE}/raw/main/anytls.sh"
 GH_RELEASE="https://github.com/ssrlive/anytls-rs/releases/latest/download"
 DEF_DOMAIN="gateway.icloud.com"
 DEF_PORT=443
@@ -19,12 +20,19 @@ warn() { echo -e " ${YELLOW}[!]${NC} $*"; }
 step() { echo -e " ${CYAN}[*]${NC} $*"; }
 head() { echo -e "\n ${PINK}${BOLD}>>${NC} ${BOLD}$*${NC}"; }
 dim()  { echo -e " ${DIM}$*${NC}"; }
-nfo()  { echo -e "   $*"; }
 
-hr()  { printf '%*s\n' 40 '' | tr ' ' '═'; }
+commit_id() {
+    local rev=""
+    rev=$(git rev-parse --short HEAD 2>/dev/null) || rev=""
+    if [ -z "$rev" ]; then
+        rev=$(curl -sS --max-time 3 "https://api.github.com/repos/irasutoya/anytls/commits/main" | grep -m1 '"sha"' | cut -d'"' -f4 | head -c 7) 2>/dev/null || rev=""
+    fi
+    [ -n "$rev" ] && echo "@${rev}" || true
+}
 
 banner() {
-    head "AnyTLS Server Manager v0.3"
+    local rev; rev=$(commit_id)
+    head "AnyTLS Server Manager ${rev}"
 }
 
 pkg_mgr() {
@@ -214,7 +222,7 @@ do_install() {
     head "初始化部署環境"
     step "检测架构..."
     local asset; asset=$(detect_asset)
-    nfo "${CYAN}目标:${NC} $asset"
+    dim "目标: $asset"
 
     download "$asset"
     gen_certs "$domain"
