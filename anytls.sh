@@ -66,9 +66,9 @@ check_deps() {
 
 detect_asset() {
     local arch; arch=$(uname -m) || die "无法检测系统架构"
-    local tag
-    tag=$(curl -sS --max-time 5 "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep -m1 '"tag_name"' | cut -d'"' -f4) || true
-    [ -n "$tag" ] || die "获取最新版本失败"
+    local json tag
+    json=$(curl -sfSL --max-time 5 "https://api.github.com/repos/SagerNet/sing-box/releases/latest") || die "获取最新版本失败: GitHub API 不可达"
+    tag=$(echo "$json" | grep -m1 '"tag_name"' | cut -d'"' -f4) || die "获取最新版本失败: 无法解析版本号"
     local ver=${tag#v}
 
     case "$arch" in
@@ -86,7 +86,7 @@ download() {
     trap "cleanup '$tmpdir'" EXIT
 
     step "下载 $asset ..."
-    curl -#SL "$url" -o "$tmpdir/$asset" || die "下载失败: $url"
+    curl -fSL "$url" -o "$tmpdir/$asset" || die "下载失败: $url"
 
     tar -xzf "$tmpdir/$asset" -C "$tmpdir" || die "解压失败"
     local bindir; bindir=$(find "$tmpdir" -maxdepth 1 -type d -name "sing-box-*" | head -1) || true
