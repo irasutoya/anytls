@@ -256,7 +256,7 @@ do_install() {
    type: anytls
    server: $ip
    port: $port
-   password: \"$password\"
+    password: $password
    sni: $domain
    udp: true
    skip-cert-verify: true
