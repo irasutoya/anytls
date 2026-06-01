@@ -25,12 +25,8 @@ cleanup() {
 }
 
 commit_id() {
-    local rev=""
-    if command -v jq >/dev/null; then
-        rev=$(curl -sS --max-time 5 "https://api.github.com/repos/irasutoya/anytls/commits/main" 2>/dev/null | jq -r '.sha[:7]' 2>/dev/null) || rev=""
-    else
-        rev=$(curl -sS --max-time 5 "https://api.github.com/repos/irasutoya/anytls/commits/main" 2>/dev/null | grep -m1 '"sha"' | cut -d'"' -f4 | head -c 7) || rev=""
-    fi
+    local rev; rev=$(curl -sS --max-time 3 "https://api.github.com/repos/irasutoya/anytls/commits/main" 2>/dev/null)
+    rev=$(echo "$rev" | grep -m1 '"sha"' | cut -d'"' -f4 | head -c 7)
     [ -n "$rev" ] && echo "@${rev}" || true
 }
 
@@ -107,8 +103,7 @@ download() {
 gen_password() {
     local hex; hex=$(openssl rand -hex 16 2>/dev/null) || hex=""
     if [ ${#hex} -lt 32 ]; then
-        date +%s | md5sum | head -c 8
-        echo "-0000-4000-8000-$(date +%s%N | md5sum | head -c 12)"
+        echo "$(date +%s)-0000-4000-8000-$(date +%s | sha256sum | head -c 12)"
         return
     fi
     local h1=${hex:0:8} h2=${hex:8:4} h3=${hex:12:4}
@@ -191,6 +186,8 @@ EOF
 
 get_ip() {
     curl -4 -sS --max-time 5 https://ip.sb 2>/dev/null ||
+    curl -4 -sS --max-time 5 https://api.ipify.org 2>/dev/null ||
+    curl -4 -sS --max-time 5 https://ifconfig.me 2>/dev/null ||
     curl -6 -sS --max-time 5 https://ip.sb 2>/dev/null ||
     hostname -f
 }
@@ -254,17 +251,17 @@ do_install() {
     dim "    ${share_link}"
     echo ""
     step "Clash 配置"
-    dim " - name: $ip"
-    dim "   type: anytls"
-    dim "   server: $ip"
-    dim "   port: $port"
-    dim "   password: \"$password\""
-    dim "   sni: $domain"
-    dim "   udp: true"
-    dim "   skip-cert-verify: true"
-    dim "   alpn:"
-    dim "     - h2"
-    dim "     - http/1.1"
+    echo -e " ${DIM}  - name: $ip
+   type: anytls
+   server: $ip
+   port: $port
+   password: \"$password\"
+   sni: $domain
+   udp: true
+   skip-cert-verify: true
+   alpn:
+     - h2
+     - http/1.1${NC}"
 }
 
 do_uninstall() {
@@ -301,7 +298,7 @@ main_menu() {
         case "$sel" in
             1) do_install ;;
             2) echo -ne " ${CYAN}[?]${NC} 确认卸载？${DIM}[y/N]${NC}: "
-               read -r ans
+               read -r ans || ans="n"
                case "$ans" in y|Y|yes|YES) do_uninstall ;; esac ;;
             3) do_status ;;
             0) ok "再见"; exit 0 ;;
