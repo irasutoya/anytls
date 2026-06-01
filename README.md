@@ -47,14 +47,14 @@ anytls://<服务器IP>:<端口>?password=<密码>&sni=<域名>
 ### Clash Meta / Mihomo
 
 ```yaml
-  - name: anytls
+  - name: <服务器IP>
     type: anytls
     server: <服务器IP>
     port: <端口>
     password: "<密码>"
     sni: <域名>
     udp: true
-    skip-cert-verify: false
+    skip-cert-verify: true
     alpn:
       - h2
       - http/1.1
