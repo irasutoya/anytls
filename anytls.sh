@@ -152,6 +152,15 @@ get_ip() {
     hostname -f
 }
 
+urlencode() {
+    local str="$1" out="" i c
+    for ((i=0; i<${#str}; i++)); do
+        c="${str:$i:1}"
+        case "$c" in [a-zA-Z0-9.~_-]) out+="$c" ;; *) printf -v out '%s%%%02X' "$out" "'$c" ;; esac
+    done
+    echo "$out"
+}
+
 # ===== Actions =====
 
 do_install() {
@@ -182,7 +191,8 @@ do_install() {
         config_firewall "$port"
     fi
 
-    local ip; ip=$(get_ip)
+    local ip pw_enc; ip=$(get_ip); pw_enc=$(urlencode "$password")
+    local share_link="anytls://${ip}:${port}?password=${pw_enc}&sni=${domain}"
     echo ""
     info "======================================"
     info "  AnyTLS 安装完成!"
@@ -191,7 +201,20 @@ do_install() {
     info "  密码: $password"
     info "  SNI:  $domain"
     echo ""
-    info " 客户端连接命令:"
+    info " Shadowrocket / V2RayN 导入链接:"
+    info "  $share_link"
+    echo ""
+    info " Clash Meta / Mihomo 配置:"
+    info "  - name: anytls"
+    info "    type: anytls"
+    info "    server: $ip"
+    info "    port: $port"
+    info "    password: \"$password\""
+    info "    sni: $domain"
+    info "    udp: true"
+    info "    skip-cert-verify: false"
+    echo ""
+    info " 客户端命令:"
     info "  anytls-client -l 127.0.0.1:3080 -s $ip:$port -p $password --sni $domain --root-cert /root/ca.crt"
     echo ""
     info " CA 证书: /root/ca.crt"

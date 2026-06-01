@@ -26,9 +26,31 @@ bash anytls.sh status
 bash anytls.sh self-update
 ```
 
-## 客户端连接
+## 客户端配置
 
-安装完成后会打印客户端命令，格式如下：
+安装完成后会打印以下配置信息。
+
+### Shadowrocket / V2RayN
+
+```
+anytls://<服务器IP>:<端口>?password=<密码>&sni=<域名>
+```
+
+### Clash Meta / Mihomo
+
+```yaml
+proxies:
+  - name: anytls
+    type: anytls
+    server: <服务器IP>
+    port: <端口>
+    password: "<密码>"
+    sni: <域名>
+    udp: true
+    skip-cert-verify: false
+```
+
+### 命令行客户端（anytls-client）
 
 ```bash
 anytls-client -l 127.0.0.1:3080 -s <服务器IP>:<端口> -p <密码> --sni <域名> --root-cert /root/ca.crt
