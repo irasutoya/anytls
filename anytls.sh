@@ -67,7 +67,8 @@ check_deps() {
 detect_asset() {
     local arch; arch=$(uname -m) || die "无法检测系统架构"
     local tag
-    tag=$(curl -sS --max-time 5 "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep -m1 '"tag_name"' | cut -d'"' -f4) || die "获取最新版本失败"
+    tag=$(curl -sS --max-time 5 "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep -m1 '"tag_name"' | cut -d'"' -f4) || true
+    [ -n "$tag" ] || die "获取最新版本失败"
     local ver=${tag#v}
 
     case "$arch" in
