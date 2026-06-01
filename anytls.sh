@@ -175,7 +175,8 @@ do_install() {
     head "初始化部署环境"
     step "检测架构..."
     local asset ver
-    read -r asset ver <<< "$(detect_asset)"
+    read -r asset ver <<< "$(detect_asset)" || true
+    [ -n "$asset" ] || die "无法获取版本信息"
     dim "目标: $asset"
 
     download "$asset" "$ver"
