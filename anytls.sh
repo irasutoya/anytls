@@ -135,22 +135,6 @@ gen_certs() {
     ok "证书已生成"
 }
 
-gen_padding_scheme() {
-    cat > /root/anytls/padding.txt <<EOF
-stop=8
-0=30-30
-1=100-400
-2=400-500,c,500-1000,c,500-1000,c,500-1000,c,500-1000
-3=9-9,500-1000
-4=500-1000
-5=500-1000
-6=500-1000
-7=500-1000
-EOF
-    chmod 644 /root/anytls/padding.txt
-    ok "padding scheme 已生成"
-}
-
 config_firewall() {
     local port=$1
     if command -v ufw >/dev/null; then
@@ -165,7 +149,7 @@ config_firewall() {
 }
 
 install_service() {
-    local domain=$1 port=$2 password=$3 padding=$4
+    local domain=$1 port=$2 password=$3
     cat > /etc/systemd/system/anytls-server.service <<EOF
 [Unit]
 Description=AnyTLS Server
@@ -174,7 +158,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/root/anytls/anytls-server -l 0.0.0.0:${port} -p ${password} --sni ${domain} --cert /root/anytls/server.crt --key /root/anytls/server.key --padding-scheme ${padding} --log warn
+ExecStart=/root/anytls/anytls-server -l 0.0.0.0:${port} -p ${password} --sni ${domain} --cert /root/anytls/server.crt --key /root/anytls/server.key --log warn
 Restart=on-failure
 RestartSec=3
 
@@ -228,8 +212,7 @@ do_install() {
 
     download "$asset"
     gen_certs "$domain"
-    gen_padding_scheme
-    install_service "$domain" "$port" "$password" "/root/anytls/padding.txt"
+    install_service "$domain" "$port" "$password"
 
     prompt "配置防火墙放行 ${port} 端口？${DIM}[Y/n]${NC}: "
     read -r ans || ans="y"
@@ -246,7 +229,6 @@ do_install() {
     dim "  SNI   ${domain}"
     step "本地文件"
     dim "  CA 证书     /root/anytls/ca.crt"
-    dim "  Padding     /root/anytls/padding.txt"
     echo ""
     step "Shadowrocket / V2RayN"
     dim "  导入链接"

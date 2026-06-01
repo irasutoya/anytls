@@ -69,5 +69,4 @@ anytls://<服务器IP>:<端口>?password=<密码>&sni=<域名>&allowInsecure=1
 | `/root/anytls/server.crt` | 服务器证书 |
 | `/root/anytls/server.key` | 服务器私钥 (chmod 600) |
 | `/root/anytls/ca.crt` | CA 证书（客户端需信任） |
-| `/root/anytls/padding.txt` | 流量填充方案 |
 | `/etc/systemd/system/anytls-server.service` | systemd 服务单元 |
