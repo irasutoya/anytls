@@ -232,18 +232,23 @@ do_install() {
     dim "    ${share_link}"
     echo ""
     step "Clash Meta / Mihomo"
-    dim "  proxy 配置"
-    dim " - name: anytls"
-    dim "   type: anytls"
-    dim "   server: $ip"
-    dim "   port: $port"
-    dim "   password: \"$password\""
-    dim "   sni: $domain"
-    dim "   udp: true"
-    dim "   skip-cert-verify: false"
-    dim "   alpn:"
-    dim "     - h2"
-    dim "     - http/1.1"
+    local clash_file="/root/anytls/clash-proxy.yaml"
+    cat > "$clash_file" <<EOF
+  - name: anytls
+    type: anytls
+    server: $ip
+    port: $port
+    password: "$password"
+    sni: $domain
+    udp: true
+    skip-cert-verify: false
+    alpn:
+      - h2
+      - http/1.1
+EOF
+    chmod 644 "$clash_file"
+    dim "  配置文件"
+    dim "    $clash_file"
     echo ""
     step "本地文件"
     dim "  CA 证书     /root/anytls/ca.crt"
